@@ -12,6 +12,7 @@ from itertools import product
 import pdb
 import Utility as utl
 import h5py
+import gc
 
 import keras
 from keras.models import Sequential
@@ -54,7 +55,7 @@ class MyVolume:
 		self.X_test = None
 		self.Y_train = None
 		self.Y_test = None
-
+		self.trained_model = None
 
 	def load_RawVolume(self):
 		'''load RawVolume as ndarray of shape=(Length, Width, Height, Num_Channels)'''
@@ -158,7 +159,7 @@ class MyVolume:
 			self.Y_test = self.Y_dataset[sample_test_datapts_index,:]
 			self.Y_train = self.Y_dataset[sample_train_datapts_index,:]
 
-	def model_train_validate(self, validation_dataset_ratio, batch_size=100, num_classes=2, epochs=15, verbose=1):
+	def model_train_validate(self, batch_size=100, num_classes=2, epochs=15, verbose=1):
 		''''''
 		##########  Convolutional Neural Network Architecture  ###########################
 		model = Sequential()
@@ -196,15 +197,24 @@ class MyVolume:
 		model.compile(loss='categorical_crossentropy',
 					  optimizer=RMSprop(),
 					  metrics=['accuracy'])
-		history = model.fit(self.X_train, self.Y_train,
+		model.fit(self.X_train, self.Y_train,
 					  batch_size=batch_size,
 					  epochs=epochs,
 					  validation_data=(self.X_test, self.Y_test),
 					  shuffle=True,
 					  verbose=verbose)
 		model.save('neuron_conn_classifier.h5')
-		model_predictions = model.predict(X_test, batch_size=1000)
-		utl.make_confusion_matrix(model_predictions, self.Y_test)
+		self.trained_model = model
+		gc.collect()
+
+	def confusion_matrix(self, X_dataset=None, Y_dataset=None):
+		''''''
+		if X_dataset is None and Y_dataset is None:
+			model_predictions = self.trained_model.predict(self.X_test, batch_size=500, verbose=0)
+			print("Confusion Matrix is: {0}".format(utl.make_confusion_matrix(model_predictions, self.Y_test)))
+		else:
+			model_predictions = self.trained_model.predict(X_dataset, batch_size=500, verbose=0)
+			print("Confusion Matrix is: {0}".format(utl.make_confusion_matrix(model_predictions, Y_dataset)))
 
 if __name__ == '__main__':    #code to execute if called from command-line
 	myVolume = MyVolume('../Sample_Datasets/Training/overallRawVolume.mat', '../Sample_Datasets/Training/volumeLabels.mat')
@@ -213,22 +223,20 @@ if __name__ == '__main__':    #code to execute if called from command-line
 	Conn_Types = myVolume.voxel_connectivity_types()
 	myVolume.balance_dataset()
 	myVolume.Y_generator()
-	
-	myVolume.X_generator(7, 7, 4, 0.2)
+	myVolume.X_generator(7, 7, 4, 0.1)
+	'''
 	with h5py.File('data4training.h5', 'w') as hf:
 		hf.create_dataset("X_train",  data=myVolume.X_train)
 		hf.create_dataset("Y_train",  data=myVolume.Y_train)
 		hf.create_dataset("X_test",  data=myVolume.X_test)
 		hf.create_dataset("Y_test",  data=myVolume.Y_test)
 	pdb.set_trace()
-	'''
 	with h5py.File('data4training.h5', 'r') as hf:
 		myVolume.X_train = hf['X_train'][:]
 		myVolume.Y_train = hf['Y_train'][:]
 		myVolume.X_test = hf['X_test'][:]
 		myVolume.Y_test = hf['Y_test'][:]
 	'''
-	myVolume.model_train_validate(validation_dataset_ratio=0.2, batch_size=100, num_classes=2, epochs=10, verbose=1)
-	pdb.set_trace()
-
+	myVolume.model_train_validate(batch_size=500, num_classes=2, epochs=30, verbose=1)
+	myVolume.confusion_matrix()
 
