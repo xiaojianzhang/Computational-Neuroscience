@@ -32,7 +32,7 @@ __status__ = "Development"
 
 class MyVolume:
 	'''A volume class'''
-	def __init__(self, RawVolume_Dir, VolumeLabels_Dir=None):
+	def __init__(self, RawVolume_Dir=None, VolumeLabels_Dir=None, RawVolume=None, VolumeLabels=None, direction='y-plus'):
 		'''initialized instance by giving directory of
 		   RowVolume and VolumeLabels(not necessary) you want
 		   to read
@@ -40,13 +40,19 @@ class MyVolume:
 		   '''
 		self._RawVolume_Dir = RawVolume_Dir
 		self._VolumeLabels_Dir = VolumeLabels_Dir
-		self.L = None #Length
-		self.H = None #Height
-		self.W = None #Width
-		self.N_Chs = None #Number of Channels
-		self.N_N_Ts = None #Number of Neuron Types
-		self.RawVolume = None #Raw Volume ndarray
-		self.VolumeLabels = None #Volume Labels ndarray
+		if RawVolume is None:
+			self.L = None #Length
+			self.H = None #Height
+			self.W = None #Width
+			self.N_Chs = None #Number of Channels
+		else:
+			self.L, self.W, self.H, self.N_Chs = RawVolume.shape
+		if VolumeLabels is None:
+			self.N_N_Ts = None #Number of Neuron Types
+		else:
+			self.N_N_Ts = VolumeLabels.shape[0]
+		self.RawVolume = RawVolume #Raw Volume ndarray
+		self.VolumeLabels = VolumeLabels #Volume Labels ndarray
 		self.Conn_Types = None
 		self.X_coor = None
 		self.Y_dataset = None
@@ -56,6 +62,8 @@ class MyVolume:
 		self.Y_train = None
 		self.Y_test = None
 		self.trained_model = None
+		self.direction = None
+		self.other_five_directions={'y-minus':None, 'x-plus':None, 'x-minus':None, 'z-plus':None, 'z-minus':None}
 
 	def load_RawVolume(self):
 		'''load RawVolume as ndarray of shape=(Length, Width, Height, Num_Channels)'''
@@ -210,20 +218,86 @@ class MyVolume:
 	def confusion_matrix(self, X_dataset=None, Y_dataset=None):
 		''''''
 		if X_dataset is None and Y_dataset is None:
-			model_predictions = self.trained_model.predict(self.X_test, batch_size=500, verbose=0)
+			model_predictions = self.trained_model.predict(self.X_test, batch_size=5000, verbose=0)
 			print("Confusion Matrix is: {0}".format(utl.make_confusion_matrix(model_predictions, self.Y_test)))
 		else:
-			model_predictions = self.trained_model.predict(X_dataset, batch_size=500, verbose=0)
+			model_predictions = self.trained_model.predict(X_dataset, batch_size=5000, verbose=0)
 			print("Confusion Matrix is: {0}".format(utl.make_confusion_matrix(model_predictions, Y_dataset)))
+
+	def other_five_directions_rawvolume_and_volumelabel(self):
+		''''''
+		# y-minus direction: rotate an array by 180 degree counterclockwise.
+		new_volume = np.rot90(self.RawVolume, 2, (0,1))          
+		new_volumelabels = np.rot90(self.VolumeLabels, 2, (1,2))
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'y-minus')  
+		NewVolume.voxel_connectivity_types()
+		NewVolume.balance_dataset()
+		NewVolume.Y_generator()
+		NewVolume.X_generator(7, 7, 4, 0.1)
+		self.other_five_directions['y-minus'] = NewVolume
+
+		#x-plus direction: rotate an array by 90 degree counterclockwise.
+		new_volume = np.rot90(self.RawVolume, 1, (0,1))           
+		new_volumelabels = np.rot90(self.VolumeLabels, 1, (1,2))
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'x-plus')  
+		NewVolume.voxel_connectivity_types()
+		NewVolume.balance_dataset()
+		NewVolume.Y_generator()
+		NewVolume.X_generator(7, 7, 4, 0.1)
+		self.other_five_directions['x-plus'] = NewVolume   
+		
+		#x-minus direction: rotate an array by 270 degree counterclockwise.
+		new_volume = np.rot90(self.RawVolume, 3, (0,1))           
+		new_volumelabels = np.rot90(self.VolumeLabels, 3, (1,2)) 
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'x-minus')  
+		NewVolume.voxel_connectivity_types()
+		NewVolume.balance_dataset()
+		NewVolume.Y_generator()
+		NewVolume.X_generator(7, 7, 4, 0.1)
+		self.other_five_directions['x-minus'] = NewVolume
+		
+		#z-plus direction: interchange two axes of an array and rotate by 270 degree counterclockwise.
+		new_volume = np.rot90(np.swapaxes(self.RawVolume,0,2), 3, (0,1)) 
+		new_volumelabels = np.rot90(np.swapaxes(self.VolumeLabels,1,3), 3, (1,2))
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'z-plus')  
+		NewVolume.voxel_connectivity_types()
+		NewVolume.balance_dataset()
+		NewVolume.Y_generator()
+		NewVolume.X_generator(7, 7, 4, 0.1)
+		self.other_five_directions['z-plus'] = NewVolume
+		
+		#z-minus direction: interchange two axes of an array and rotate by 90 degree counterclockwise.
+		new_volume = np.rot90(np.swapaxes(self.RawVolume,0,2), 1, (0,1)) 
+		new_volumelabels = np.rot90(np.swapaxes(self.VolumeLabels,1,3), 1, (1,2))
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'z-minus')  
+		NewVolume.voxel_connectivity_types()
+		NewVolume.balance_dataset()
+		NewVolume.Y_generator()
+		NewVolume.X_generator(7, 7, 4, 0.1)
+		self.other_five_directions['z-plus'] = NewVolume
+
+	def stack_Xdata_Ydata_six_directions(self):
+		''''''
+		for myVolume in self.other_five_directions.values():
+			self.X_train = np.concatenate((self.X_train, myVolume.X_train), axis=0)
+			self.X_test = np.concatenate((self.X_test, myVolume.X_test), axis=0)
+			self.Y_train = np.concatenate((self.Y_train, myVolume.Y_train), axis=0)
+			self.Y_test = np.concatenate((self.Y_test, myVolume.Y_test), axis=0)
+		self.other_five_directions = None
+
 
 if __name__ == '__main__':    #code to execute if called from command-line
 	myVolume = MyVolume('../Sample_Datasets/Training/overallRawVolume.mat', '../Sample_Datasets/Training/volumeLabels.mat')
 	myVolume.load_RawVolume()
 	myVolume.load_VolumeLabels()
-	Conn_Types = myVolume.voxel_connectivity_types()
+	myVolume.voxel_connectivity_types()
 	myVolume.balance_dataset()
 	myVolume.Y_generator()
 	myVolume.X_generator(7, 7, 4, 0.1)
+	myVolume.other_five_directions_rawvolume_and_volumelabel()
+	myVolume.stack_Xdata_Ydata_six_directions(self)
+	myVolume.model_train_validate(batch_size=1000, num_classes=2, epochs=40, verbose=1)
+	myVolume.confusion_matrix()
 	'''
 	with h5py.File('data4training.h5', 'w') as hf:
 		hf.create_dataset("X_train",  data=myVolume.X_train)
@@ -237,6 +311,3 @@ if __name__ == '__main__':    #code to execute if called from command-line
 		myVolume.X_test = hf['X_test'][:]
 		myVolume.Y_test = hf['Y_test'][:]
 	'''
-	myVolume.model_train_validate(batch_size=500, num_classes=2, epochs=30, verbose=1)
-	myVolume.confusion_matrix()
-
