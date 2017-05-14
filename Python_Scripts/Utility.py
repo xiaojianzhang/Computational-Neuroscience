@@ -41,14 +41,14 @@ def find_neuron_voxel_coor(VolumeLabels):
 
 	return neuron_voxel_coor, NV_array
 
-def same_type_neuron_connectivity(neuron_coor_dict, VolumeLabels, L):
+def same_type_neuron_connectivity(neuron_coor_dict, VolumeLabels, W):
 	'''
 	'''
 	same_type_neuron_conn = []
 	for neuron_type, neuron_coor in neuron_coor_dict.items():
 		VLs = VolumeLabels[int(neuron_type)-1,:,:,:]
 		for (x,y,z) in neuron_coor:
-			if y+1 <= L-1 and VLs[x,y+1,z] == 1:
+			if y+1 <= W-1 and VLs[x,y+1,z] == 1:
 				same_type_neuron_conn.append((x,y,z))
 
 		same_type_neuron_conn = list(set(same_type_neuron_conn))
@@ -64,13 +64,13 @@ def find_background_voxel_coor(VolumeLabels):
 
 	return background_voxel_coor, BV_array
 
-def neuron_background_connectivity(neuron_coor_dict, background_voxel_coor, BV_array, L):
+def neuron_background_connectivity(neuron_coor_dict, background_voxel_coor, BV_array, W):
 	'''
 	'''
 	neuron_background_conn = []
 	for neuron_type, neuron_coor in neuron_coor_dict.items():
 		for (x,y,z) in neuron_coor:
-			if y+1 <= L-1 and BV_array[x,y+1,z] == 1:
+			if y+1 <= W-1 and BV_array[x,y+1,z] == 1:
 				neuron_background_conn.append((x,y,z))
 
 		neuron_background_conn = list(set(neuron_background_conn))
@@ -78,29 +78,29 @@ def neuron_background_connectivity(neuron_coor_dict, background_voxel_coor, BV_a
 	return neuron_background_conn
 
 
-def background_neuron_connectivity(background_voxel_coor, NV_array, L):
+def background_neuron_connectivity(background_voxel_coor, NV_array, W):
 	'''
 	'''
 	background_neuron_conn = []
 	for (x,y,z) in background_voxel_coor:
-		if y+1 <= L-1 and NV_array[x,y+1,z] == 1:
+		if y+1 <= W-1 and NV_array[x,y+1,z] == 1:
 			background_neuron_conn.append((x,y,z))
 	background_neuron_conn = list(set(background_neuron_conn))
 
 	return background_neuron_conn
 
-def background_background_connectivity(background_voxel_coor, BV_array, L):
+def background_background_connectivity(background_voxel_coor, BV_array, W):
 	'''
 	'''
 	background_background_conn = []
 	for (x,y,z) in background_voxel_coor:
-		if y+1 <= L-1 and BV_array[x,y+1,z] == 1:
+		if y+1 <= W-1 and BV_array[x,y+1,z] == 1:
 			background_background_conn.append((x,y,z))
 	background_background_conn = list(set(background_background_conn))		
 
 	return background_background_conn
 
-def different_neuron_connectivity(neuron_coor_dict, VolumeLabels, L, same_type_neuron_conn):
+def different_neuron_connectivity(neuron_coor_dict, VolumeLabels, W, same_type_neuron_conn):
 	'''
 	'''
 	different_neuron_conn = []
@@ -108,7 +108,7 @@ def different_neuron_connectivity(neuron_coor_dict, VolumeLabels, L, same_type_n
 		sum_along_type_except_neuron_type = np.sum(VolumeLabels, axis=0) - VolumeLabels[int(neuron_type)-1,:,:,:]
 		ON_array = (sum_along_type_except_neuron_type>=1).astype(np.int)
 		for (x,y,z) in neuron_coor:
-			if y+1 <= L-1 and ON_array[x,y+1,z] == 1:
+			if y+1 <= W-1 and ON_array[x,y+1,z] == 1:
 				different_neuron_conn.append((x,y,z))
 	different_neuron_conn = list(set(different_neuron_conn) - set(same_type_neuron_conn))
 

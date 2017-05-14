@@ -48,7 +48,7 @@ class MyVolume:
 		else:
 			self.L, self.W, self.H, self.N_Chs = RawVolume.shape
 		if VolumeLabels is None:
-			self.N_N_Ts = None #Number of Neuron Types
+			self.N_N_Ts = VolumeLabels #Number of Neuron Types
 		else:
 			self.N_N_Ts = VolumeLabels.shape[0]
 		self.RawVolume = RawVolume #Raw Volume ndarray
@@ -62,7 +62,7 @@ class MyVolume:
 		self.Y_train = None
 		self.Y_test = None
 		self.trained_model = None
-		self.direction = None
+		self.direction = direction
 		self.other_five_directions={'y-minus':None, 'x-plus':None, 'x-minus':None, 'z-plus':None, 'z-minus':None}
 
 	def load_RawVolume(self):
@@ -88,11 +88,11 @@ class MyVolume:
 		neuron_coor_dict = utl.find_neuron_coor(self.VolumeLabels)
 		neuron_voxel_coor, NV_array = utl.find_neuron_voxel_coor(self.VolumeLabels)
 		background_voxel_coor, BV_array = utl.find_background_voxel_coor(self.VolumeLabels)
-		same_type_neuron_conn = utl.same_type_neuron_connectivity(neuron_coor_dict, self.VolumeLabels, self.L)
-		neuron_background_conn = utl.neuron_background_connectivity(neuron_coor_dict, background_voxel_coor, BV_array, self.L)
-		background_neuron_conn = utl.background_neuron_connectivity(background_voxel_coor, NV_array, self.L)
-		background_background_conn = utl.background_background_connectivity(background_voxel_coor, BV_array, self.L)
-		different_neuron_conn = utl.different_neuron_connectivity(neuron_coor_dict, self.VolumeLabels, self.L, same_type_neuron_conn)
+		same_type_neuron_conn = utl.same_type_neuron_connectivity(neuron_coor_dict, self.VolumeLabels, self.W)
+		neuron_background_conn = utl.neuron_background_connectivity(neuron_coor_dict, background_voxel_coor, BV_array, self.W)
+		background_neuron_conn = utl.background_neuron_connectivity(background_voxel_coor, NV_array, self.W)
+		background_background_conn = utl.background_background_connectivity(background_voxel_coor, BV_array, self.W)
+		different_neuron_conn = utl.different_neuron_connectivity(neuron_coor_dict, self.VolumeLabels, self.W, same_type_neuron_conn)
 		Conn_Types = {'same_type_neuron':same_type_neuron_conn, 'neuron_background':neuron_background_conn,\
 					  'background_neuron':background_neuron_conn, 'background_background':background_background_conn,\
 					  'different_neuron':different_neuron_conn}
@@ -141,6 +141,7 @@ class MyVolume:
 												new_z-extra_height:new_z+1+extra_height, :]
 				self.X_dataset.append(input_array)
 			self.X_dataset = np.stack(self.X_dataset, axis=0)
+			print('direction {0} completed\n'.format(self.direction))
 		else:
 			self.X_train=[]
 			self.X_test=[]
@@ -166,6 +167,7 @@ class MyVolume:
 			self.X_test = np.stack(self.X_test, axis=0)
 			self.Y_test = self.Y_dataset[sample_test_datapts_index,:]
 			self.Y_train = self.Y_dataset[sample_train_datapts_index,:]
+			print('direction {0} completed\n'.format(self.direction))
 
 	def model_train_validate(self, batch_size=100, num_classes=2, epochs=15, verbose=1):
 		''''''
@@ -245,7 +247,7 @@ class MyVolume:
 		NewVolume.Y_generator()
 		NewVolume.X_generator(7, 7, 4, 0.1)
 		self.other_five_directions['x-plus'] = NewVolume   
-		
+
 		#x-minus direction: rotate an array by 270 degree counterclockwise.
 		new_volume = np.rot90(self.RawVolume, 3, (0,1))           
 		new_volumelabels = np.rot90(self.VolumeLabels, 3, (1,2)) 
@@ -255,7 +257,7 @@ class MyVolume:
 		NewVolume.Y_generator()
 		NewVolume.X_generator(7, 7, 4, 0.1)
 		self.other_five_directions['x-minus'] = NewVolume
-		
+		'''
 		#z-plus direction: interchange two axes of an array and rotate by 270 degree counterclockwise.
 		new_volume = np.rot90(np.swapaxes(self.RawVolume,0,2), 3, (0,1)) 
 		new_volumelabels = np.rot90(np.swapaxes(self.VolumeLabels,1,3), 3, (1,2))
@@ -265,7 +267,7 @@ class MyVolume:
 		NewVolume.Y_generator()
 		NewVolume.X_generator(7, 7, 4, 0.1)
 		self.other_five_directions['z-plus'] = NewVolume
-		
+
 		#z-minus direction: interchange two axes of an array and rotate by 90 degree counterclockwise.
 		new_volume = np.rot90(np.swapaxes(self.RawVolume,0,2), 1, (0,1)) 
 		new_volumelabels = np.rot90(np.swapaxes(self.VolumeLabels,1,3), 1, (1,2))
@@ -274,15 +276,17 @@ class MyVolume:
 		NewVolume.balance_dataset()
 		NewVolume.Y_generator()
 		NewVolume.X_generator(7, 7, 4, 0.1)
-		self.other_five_directions['z-plus'] = NewVolume
+		self.other_five_directions['z-minus'] = NewVolume
+		'''
 
 	def stack_Xdata_Ydata_six_directions(self):
 		''''''
 		for myVolume in self.other_five_directions.values():
-			self.X_train = np.concatenate((self.X_train, myVolume.X_train), axis=0)
-			self.X_test = np.concatenate((self.X_test, myVolume.X_test), axis=0)
-			self.Y_train = np.concatenate((self.Y_train, myVolume.Y_train), axis=0)
-			self.Y_test = np.concatenate((self.Y_test, myVolume.Y_test), axis=0)
+			if myVolume is not None:
+				self.X_train = np.concatenate((self.X_train, myVolume.X_train), axis=0)
+				self.X_test = np.concatenate((self.X_test, myVolume.X_test), axis=0)
+				self.Y_train = np.concatenate((self.Y_train, myVolume.Y_train), axis=0)
+				self.Y_test = np.concatenate((self.Y_test, myVolume.Y_test), axis=0)
 		self.other_five_directions = None
 
 
@@ -295,7 +299,7 @@ if __name__ == '__main__':    #code to execute if called from command-line
 	myVolume.Y_generator()
 	myVolume.X_generator(7, 7, 4, 0.1)
 	myVolume.other_five_directions_rawvolume_and_volumelabel()
-	myVolume.stack_Xdata_Ydata_six_directions(self)
+	myVolume.stack_Xdata_Ydata_six_directions()
 	myVolume.model_train_validate(batch_size=1000, num_classes=2, epochs=40, verbose=1)
 	myVolume.confusion_matrix()
 	'''
