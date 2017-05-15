@@ -61,6 +61,10 @@ class MyVolume:
 		self.X_test = None
 		self.Y_train = None
 		self.Y_test = None
+		self.validation_dataset_ratio=None
+		self.extra_length = None
+		self.extra_width = None
+		self.extra_height = None
 		self.trained_model = None
 		self.direction = direction
 		self.other_five_directions={'y-minus':None, 'x-plus':None, 'x-minus':None, 'z-plus':None, 'z-minus':None}
@@ -130,6 +134,10 @@ class MyVolume:
 
 	def X_generator(self, extra_length, extra_width, extra_height, validation_dataset_ratio=None):
 		''''''
+		self.extra_length = extra_length
+		self.extra_width = extra_width
+		self.extra_height = extra_height
+		self.validation_dataset_ratio = validation_dataset_ratio
 		augumented_Volume = utl.image_augmentation(self.RawVolume, extra_length, extra_width, extra_height, method='zero_padding')
 		X_coor = self.X_coor['0'] + self.X_coor['1']
 		if validation_dataset_ratio is None:
@@ -235,7 +243,7 @@ class MyVolume:
 		NewVolume.voxel_connectivity_types()
 		NewVolume.balance_dataset()
 		NewVolume.Y_generator()
-		NewVolume.X_generator(7, 7, 4, 0.1)
+		NewVolume.X_generator(self.extra_length, extra_width, extra_height, self.validation_dataset_ratio)
 		self.other_five_directions['y-minus'] = NewVolume
 
 		#x-plus direction: rotate an array by 90 degree counterclockwise.
@@ -245,7 +253,7 @@ class MyVolume:
 		NewVolume.voxel_connectivity_types()
 		NewVolume.balance_dataset()
 		NewVolume.Y_generator()
-		NewVolume.X_generator(7, 7, 4, 0.1)
+		NewVolume.X_generator(self.extra_length, extra_width, extra_height, self.validation_dataset_ratio)
 		self.other_five_directions['x-plus'] = NewVolume   
 
 		#x-minus direction: rotate an array by 270 degree counterclockwise.
@@ -255,7 +263,7 @@ class MyVolume:
 		NewVolume.voxel_connectivity_types()
 		NewVolume.balance_dataset()
 		NewVolume.Y_generator()
-		NewVolume.X_generator(7, 7, 4, 0.1)
+		NewVolume.X_generator(self.extra_length, extra_width, extra_height, self.validation_dataset_ratio)
 		self.other_five_directions['x-minus'] = NewVolume
 		'''
 		#z-plus direction: interchange two axes of an array and rotate by 270 degree counterclockwise.
@@ -265,7 +273,7 @@ class MyVolume:
 		NewVolume.voxel_connectivity_types()
 		NewVolume.balance_dataset()
 		NewVolume.Y_generator()
-		NewVolume.X_generator(7, 7, 4, 0.1)
+		NewVolume.X_generator(self.extra_length, extra_width, extra_height, self.validation_dataset_ratio)
 		self.other_five_directions['z-plus'] = NewVolume
 
 		#z-minus direction: interchange two axes of an array and rotate by 90 degree counterclockwise.
@@ -275,7 +283,7 @@ class MyVolume:
 		NewVolume.voxel_connectivity_types()
 		NewVolume.balance_dataset()
 		NewVolume.Y_generator()
-		NewVolume.X_generator(7, 7, 4, 0.1)
+		NewVolume.X_generator(self.extra_length, extra_width, extra_height, self.validation_dataset_ratio)
 		self.other_five_directions['z-minus'] = NewVolume
 		'''
 
@@ -302,6 +310,7 @@ if __name__ == '__main__':    #code to execute if called from command-line
 	myVolume.stack_Xdata_Ydata_six_directions()
 	myVolume.model_train_validate(batch_size=1000, num_classes=2, epochs=40, verbose=1)
 	myVolume.confusion_matrix()
+
 	'''
 	with h5py.File('data4training.h5', 'w') as hf:
 		hf.create_dataset("X_train",  data=myVolume.X_train)
