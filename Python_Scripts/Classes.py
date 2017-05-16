@@ -15,7 +15,7 @@ import h5py
 import gc
 
 import keras
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv3D, MaxPooling3D
 from keras.optimizers import RMSprop
@@ -67,7 +67,8 @@ class MyVolume:
 		self.extra_height = None
 		self.trained_model = None
 		self.direction = direction
-		self.other_five_directions={'y-minus':None, 'x-plus':None, 'x-minus':None, 'z-plus':None, 'z-minus':None}
+		self.predictions = None
+		self.six_directions_predictions={'y-plus':None, 'y-minus':None, 'x-plus':None, 'x-minus':None, 'z-plus':None, 'z-minus':None}
 
 	def load_RawVolume(self):
 		'''load RawVolume as ndarray of shape=(Length, Width, Height, Num_Channels)'''
@@ -297,40 +298,141 @@ class MyVolume:
 				self.Y_test = np.concatenate((self.Y_test, myVolume.Y_test), axis=0)
 		del self.other_five_directions
 
+	def volumelabels_predictions(self):
+		''''''
+		self.predictions = np.empty([self.L,self.W-1,self.H],dtype=np.int)
+		augumented_Volume = utl.image_augmentation(self.RawVolume, self.extra_length, self.extra_width, self.extra_height, method='zero_padding')
+		for z in range(self.H):
+			inputs = []
+			new_z = z + self.extra_height
+			for x in range(self.L):
+				for y in range(self.W-1):
+					new_x, new_y = (x + self.extra_length, y + self.extra_width)
+					inputs.append(augumented_Volume[new_x-self.extra_length:new_x+1+self.extra_length,\
+												new_y-self.extra_width:new_y+1+self.extra_width,\
+												new_z-self.extra_height:new_z+1+self.extra_height, :])
+			inputs = np.stack(inputs, axis=0)        
+			prediction = self.trained_model.predict_classes(inputs, batch_size=self.W-1, verbose=0)
+			self.predictions = prediction.reshape((self.L,self.W-1), order='C')
+			print('predictions for direction {0} completed'.fomart(self.direction))
+
+	def other_five_predictions(self):
+		''''''
+		# y-minus direction: rotate an array by 180 degree counterclockwise.
+		new_volume = np.rot90(self.RawVolume, 2, (0,1))          
+		new_volumelabels = np.rot90(self.VolumeLabels, 2, (1,2))
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'y-minus')
+		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.volumelabels_predictions()
+		self.six_directions_predictions['y-minus'] = np.rot90(NewVolume.predictions, 2, (0,1))
+
+		#x-plus direction: rotate an array by 90 degree counterclockwise.
+		new_volume = np.rot90(self.RawVolume, 1, (0,1))           
+		new_volumelabels = np.rot90(self.VolumeLabels, 1, (1,2))
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'x-plus')  
+		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.volumelabels_predictions()
+		self.six_directions_predictions['x-plus'] = np.rot90(NewVolume.predictions, 3, (0,1))   
+
+		#x-minus direction: rotate an array by 270 degree counterclockwise.
+		new_volume = np.rot90(self.RawVolume, 3, (0,1))           
+		new_volumelabels = np.rot90(self.VolumeLabels, 3, (1,2)) 
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'x-minus')  
+		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.volumelabels_predictions()
+		self.six_directions_predictions['x-minus'] = np.rot90(NewVolume.predictions, 1, (0,1))
+		'''
+		#z-plus direction: interchange two axes of an array and rotate by 270 degree counterclockwise.
+		new_volume = np.rot90(np.swapaxes(self.RawVolume,0,2), 3, (0,1)) 
+		new_volumelabels = np.rot90(np.swapaxes(self.VolumeLabels,1,3), 3, (1,2))
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'z-plus')  
+		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.volumelabels_predictions()
+		self.other_five_directions_predictions['z-plus'] = np.rot90(NewVolume.predictions, 1, (0,1))
+
+		#z-minus direction: interchange two axes of an array and rotate by 90 degree counterclockwise.
+		new_volume = np.rot90(np.swapaxes(self.RawVolume,0,2), 1, (0,1)) 
+		new_volumelabels = np.rot90(np.swapaxes(self.VolumeLabels,1,3), 1, (1,2))
+		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'z-minus')  
+		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.volumelabels_predictions()
+		self.other_five_directions_predictions['z-minus'] = np.rot90(NewVolume.predictions, 3, (0,1))
+		'''
+
+	def label_image_construction(predictions_dict):
+		'''
+		Inputs: rotated_predictions_dict -- dictionary that contains six directions' predictions
+											('key',value)=(direction, predictions array
+											associated with the direction)
+											'key'=['y-plus', 'y-minus', 'x-plus', 'x-minus','z-plus','z-minus']
+				Length, Width, Height -- three integers that represent the length, width and height of the volume.
+		Outputs: reconstruction -- 3D 0/1 label array of shape=(Length, Width, Height). Indicates that a voxel
+								   is a neuron or a background.
+		'''
+		reconstruction = np.zeros((self.L, self.W, self.H), dtype=np.int)
+		for z in range(self.H):
+			predictions_dict_4directions = {'y-plus':predictions_dict['y-plus'][:,:,z],
+										   'y-minus':predictions_dict['y-minus'][:,:,z],
+										   'x-plus':predictions_dict['x-plus'][:,:,z],
+										   'x-minus':predictions_dict['x-minus'][:,:,z]}
+			
+			for x in range(self.L):
+				for y in range(self.W):
+					reconstruction[x,y,z] = utl.current_voxel_label_4direction(predictions_dict_4directions, x, y, self.L, self.W)
+		
+		return reconstruction
 
 if __name__ == '__main__':    #code to execute if called from command-line
 	#Training using mutiple volumes
 	gc.enable()
-	training_dataset_path_list = utl.Volume_Labels_dir_dict('../Sample_Datasets/Training_Multiple_Volumes/')
-	Volume_Class_dict = {}
+	'''
+	training_dataset_path_dict = utl.Volume_Labels_dir_dict('../Sample_Datasets/Training_Multiple_Volumes/')
+	train_volume_dict = {}
 	myVolume_train_validate = MyVolume()
 	myVolume_train_validate.X_train = []
 	myVolume_train_validate.Y_train = []
 	myVolume_train_validate.X_test = []
 	myVolume_train_validate.Y_test = [] 
-	for name, values in training_dataset_path_list.items():
+	for name, values in training_dataset_path_dict.items():
 		print("Processing volume: {0}".format(name))
-		Volume_Class_dict[name] = MyVolume(values['overRawVolume'], values['volumeLabels'])
-		Volume_Class_dict[name].load_RawVolume()
-		Volume_Class_dict[name].load_VolumeLabels()
-		Volume_Class_dict[name].voxel_connectivity_types()
-		Volume_Class_dict[name].balance_dataset()
-		Volume_Class_dict[name].Y_generator()
-		Volume_Class_dict[name].X_generator(7, 7, 4, 0.2)
-		Volume_Class_dict[name].other_five_directions_rawvolume_and_volumelabel()
-		Volume_Class_dict[name].stack_Xdata_Ydata_six_directions()
-		myVolume_train_validate.X_train.append(Volume_Class_dict[name].X_train)
-		del Volume_Class_dict[name].X_train
-		myVolume_train_validate.Y_train.append(Volume_Class_dict[name].Y_train)
-		del Volume_Class_dict[name].Y_train
-		myVolume_train_validate.X_test.append(Volume_Class_dict[name].X_test)
-		del Volume_Class_dict[name].X_test
-		myVolume_train_validate.Y_test.append(Volume_Class_dict[name].Y_test)
-		del Volume_Class_dict[name].Y_test
+		train_volume_dict[name] = MyVolume(values['overRawVolume'], values['volumeLabels'])
+		train_volume_dict[name].load_RawVolume()
+		train_volume_dict[name].load_VolumeLabels()
+		train_volume_dict[name].voxel_connectivity_types()
+		train_volume_dict[name].balance_dataset()
+		train_volume_dict[name].Y_generator()
+		train_volume_dict[name].X_generator(7, 7, 4, 0.2)
+		train_volume_dict[name].other_five_directions_rawvolume_and_volumelabel()
+		train_volume_dict[name].stack_Xdata_Ydata_six_directions()
+		myVolume_train_validate.X_train.append(train_volume_dict[name].X_train)
+		del train_volume_dict[name].X_train
+		myVolume_train_validate.Y_train.append(train_volume_dict[name].Y_train)
+		del train_volume_dict[name].Y_train
+		myVolume_train_validate.X_test.append(train_volume_dict[name].X_test)
+		del train_volume_dict[name].X_test
+		myVolume_train_validate.Y_test.append(train_volume_dict[name].Y_test)
+		del train_volume_dict[name].Y_test
 	myVolume_train_validate.X_train = np.concatenate(myVolume_train_validate.X_train, axis=0)
 	myVolume_train_validate.Y_train = np.concatenate(myVolume_train_validate.Y_train, axis=0)
 	myVolume_train_validate.X_test = np.concatenate(myVolume_train_validate.X_test, axis=0)
 	myVolume_train_validate.Y_test = np.concatenate(myVolume_train_validate.Y_test, axis=0)
 	myVolume_train_validate.model_train_validate(batch_size=5000, num_classes=2, epochs=15, verbose=1)
 	myVolume_train_validate.confusion_matrix()
-	
+	'''
+	#pdb.set_trace()
+	model = load_model('neuron_conn_classifier.h5')
+	test_dataset_path_dict = utl.Volume_Labels_dir_dict('../Sample_Datasets/Test/')
+	test_volume_dict = {}
+	for name, values in test_dataset_path_dict.items():
+		print("Processing volume: {0}".format(name))
+		test_volume_dict[name] = MyVolume(values['overRawVolume'], values['volumeLabels'])
+		test_volume_dict[name].load_RawVolume()
+		test_volume_dict[name].load_VolumeLabels()
+		test_volume_dict[name].extra_length, test_volume_dict[name].extra_width, test_volume_dict[name].extra_height = (7, 7, 4)
+		test_volume_dict[name].trained_model = model
+		test_volume_dict[name].volumelabels_predictions()
+		test_volume_dict[name].six_directions_predictions['y-plus'] = test_volume_dict[name].predictions
+		test_volume_dict[name].other_five_predictions()
+		with open('{}_predictions.pickle'.format(name), 'wb') as f:
+			pickle.dump(test_volume_dict[name].six_directions_predictions, f)
+	gc.collect()
