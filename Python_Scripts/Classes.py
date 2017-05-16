@@ -331,6 +331,6 @@ if __name__ == '__main__':    #code to execute if called from command-line
 	myVolume_train_validate.Y_train = np.concatenate(myVolume_train_validate.Y_train, axis=0)
 	myVolume_train_validate.X_test = np.concatenate(myVolume_train_validate.X_test, axis=0)
 	myVolume_train_validate.Y_test = np.concatenate(myVolume_train_validate.Y_test, axis=0)
-	myVolume_train_validate.model_train_validate(batch_size=5000, num_classes=2, epochs=5, verbose=1)
+	myVolume_train_validate.model_train_validate(batch_size=5000, num_classes=2, epochs=15, verbose=1)
 	myVolume_train_validate.confusion_matrix()
 	
