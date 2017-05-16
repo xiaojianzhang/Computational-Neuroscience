@@ -243,7 +243,7 @@ class MyVolume:
 		NewVolume.voxel_connectivity_types()
 		NewVolume.balance_dataset()
 		NewVolume.Y_generator()
-		NewVolume.X_generator(self.extra_length, extra_width, extra_height, self.validation_dataset_ratio)
+		NewVolume.X_generator(self.extra_length, self.extra_width, self.extra_height, self.validation_dataset_ratio)
 		self.other_five_directions['y-minus'] = NewVolume
 
 		#x-plus direction: rotate an array by 90 degree counterclockwise.
@@ -253,7 +253,7 @@ class MyVolume:
 		NewVolume.voxel_connectivity_types()
 		NewVolume.balance_dataset()
 		NewVolume.Y_generator()
-		NewVolume.X_generator(self.extra_length, extra_width, extra_height, self.validation_dataset_ratio)
+		NewVolume.X_generator(self.extra_length, self.extra_width, self.extra_height, self.validation_dataset_ratio)
 		self.other_five_directions['x-plus'] = NewVolume   
 
 		#x-minus direction: rotate an array by 270 degree counterclockwise.
@@ -263,7 +263,7 @@ class MyVolume:
 		NewVolume.voxel_connectivity_types()
 		NewVolume.balance_dataset()
 		NewVolume.Y_generator()
-		NewVolume.X_generator(self.extra_length, extra_width, extra_height, self.validation_dataset_ratio)
+		NewVolume.X_generator(self.extra_length, self.extra_width, self.extra_height, self.validation_dataset_ratio)
 		self.other_five_directions['x-minus'] = NewVolume
 		'''
 		#z-plus direction: interchange two axes of an array and rotate by 270 degree counterclockwise.
@@ -295,32 +295,41 @@ class MyVolume:
 				self.X_test = np.concatenate((self.X_test, myVolume.X_test), axis=0)
 				self.Y_train = np.concatenate((self.Y_train, myVolume.Y_train), axis=0)
 				self.Y_test = np.concatenate((self.Y_test, myVolume.Y_test), axis=0)
-		self.other_five_directions = None
+		del self.other_five_directions
 
 
 if __name__ == '__main__':    #code to execute if called from command-line
-	myVolume = MyVolume('../Sample_Datasets/Training/overallRawVolume.mat', '../Sample_Datasets/Training/volumeLabels.mat')
-	myVolume.load_RawVolume()
-	myVolume.load_VolumeLabels()
-	myVolume.voxel_connectivity_types()
-	myVolume.balance_dataset()
-	myVolume.Y_generator()
-	myVolume.X_generator(7, 7, 4, 0.1)
-	myVolume.other_five_directions_rawvolume_and_volumelabel()
-	myVolume.stack_Xdata_Ydata_six_directions()
-	myVolume.model_train_validate(batch_size=1000, num_classes=2, epochs=40, verbose=1)
-	myVolume.confusion_matrix()
-
-	'''
-	with h5py.File('data4training.h5', 'w') as hf:
-		hf.create_dataset("X_train",  data=myVolume.X_train)
-		hf.create_dataset("Y_train",  data=myVolume.Y_train)
-		hf.create_dataset("X_test",  data=myVolume.X_test)
-		hf.create_dataset("Y_test",  data=myVolume.Y_test)
+	#Training using mutiple volumes
 	pdb.set_trace()
-	with h5py.File('data4training.h5', 'r') as hf:
-		myVolume.X_train = hf['X_train'][:]
-		myVolume.Y_train = hf['Y_train'][:]
-		myVolume.X_test = hf['X_test'][:]
-		myVolume.Y_test = hf['Y_test'][:]
-	'''
+	gc.enable()
+	training_dataset_path_list = utl.Volume_Labels_dir_dict('../Sample_Datasets/Training_Multiple_Volumes/')
+	Volume_Class_dict = {}
+	X_train = []
+	Y_train = []
+	X_test = []
+	Y_test = [] 
+	for name, values in training_dataset_path_list.items():
+		Volume_Class_dict[name] = MyVolume(values['overRawVolume'], values['volumeLabels'])
+		Volume_Class_dict[name].load_RawVolume()
+		Volume_Class_dict[name].load_VolumeLabels()
+		Volume_Class_dict[name].voxel_connectivity_types()
+		Volume_Class_dict[name].balance_dataset()
+		Volume_Class_dict[name].Y_generator()
+		Volume_Class_dict[name].X_generator(7, 7, 4, 0.1)
+		Volume_Class_dict[name].other_five_directions_rawvolume_and_volumelabel()
+		Volume_Class_dict[name].stack_Xdata_Ydata_six_directions()
+		X_train.append(Volume_Class_dict[name].X_train)
+		del Volume_Class_dict[name].X_train
+		Y_train.append(Volume_Class_dict[name].Y_train)
+		del Volume_Class_dict[name].Y_train
+		X_test.append(Volume_Class_dict[name].X_test)
+		del Volume_Class_dict[name].X_test
+		Y_test.append(Volume_Class_dict[name].Y_test)
+		del Volume_Class_dict[name].Y_test
+	X_train = np.concatenate(X_train, axis=0)
+	Y_train = np.concatenate(Y_train, axis=0)
+	X_test = np.concatenate(X_test, axis=0)
+	Y_test = np.concatenate(Y_test, axis=0)
+	utl.model_train_validate(batch_size=5000, num_classes=2, epochs=20, verbose=1)
+	utl.confusion_matrix()
+	
