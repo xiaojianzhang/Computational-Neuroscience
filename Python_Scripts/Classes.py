@@ -300,36 +300,37 @@ class MyVolume:
 
 if __name__ == '__main__':    #code to execute if called from command-line
 	#Training using mutiple volumes
-	pdb.set_trace()
 	gc.enable()
 	training_dataset_path_list = utl.Volume_Labels_dir_dict('../Sample_Datasets/Training_Multiple_Volumes/')
 	Volume_Class_dict = {}
-	X_train = []
-	Y_train = []
-	X_test = []
-	Y_test = [] 
+	myVolume_train_validate = MyVolume()
+	myVolume_train_validate.X_train = []
+	myVolume_train_validate.Y_train = []
+	myVolume_train_validate.X_test = []
+	myVolume_train_validate.Y_test = [] 
 	for name, values in training_dataset_path_list.items():
+		print("Processing volume: {0}".format(name))
 		Volume_Class_dict[name] = MyVolume(values['overRawVolume'], values['volumeLabels'])
 		Volume_Class_dict[name].load_RawVolume()
 		Volume_Class_dict[name].load_VolumeLabels()
 		Volume_Class_dict[name].voxel_connectivity_types()
 		Volume_Class_dict[name].balance_dataset()
 		Volume_Class_dict[name].Y_generator()
-		Volume_Class_dict[name].X_generator(7, 7, 4, 0.1)
+		Volume_Class_dict[name].X_generator(7, 7, 4, 0.2)
 		Volume_Class_dict[name].other_five_directions_rawvolume_and_volumelabel()
 		Volume_Class_dict[name].stack_Xdata_Ydata_six_directions()
-		X_train.append(Volume_Class_dict[name].X_train)
+		myVolume_train_validate.X_train.append(Volume_Class_dict[name].X_train)
 		del Volume_Class_dict[name].X_train
-		Y_train.append(Volume_Class_dict[name].Y_train)
+		myVolume_train_validate.Y_train.append(Volume_Class_dict[name].Y_train)
 		del Volume_Class_dict[name].Y_train
-		X_test.append(Volume_Class_dict[name].X_test)
+		myVolume_train_validate.X_test.append(Volume_Class_dict[name].X_test)
 		del Volume_Class_dict[name].X_test
-		Y_test.append(Volume_Class_dict[name].Y_test)
+		myVolume_train_validate.Y_test.append(Volume_Class_dict[name].Y_test)
 		del Volume_Class_dict[name].Y_test
-	X_train = np.concatenate(X_train, axis=0)
-	Y_train = np.concatenate(Y_train, axis=0)
-	X_test = np.concatenate(X_test, axis=0)
-	Y_test = np.concatenate(Y_test, axis=0)
-	utl.model_train_validate(batch_size=5000, num_classes=2, epochs=20, verbose=1)
-	utl.confusion_matrix()
+	myVolume_train_validate.X_train = np.concatenate(myVolume_train_validate.X_train, axis=0)
+	myVolume_train_validate.Y_train = np.concatenate(myVolume_train_validate.Y_train, axis=0)
+	myVolume_train_validate.X_test = np.concatenate(myVolume_train_validate.X_test, axis=0)
+	myVolume_train_validate.Y_test = np.concatenate(myVolume_train_validate.Y_test, axis=0)
+	myVolume_train_validate.model_train_validate(batch_size=5000, num_classes=2, epochs=5, verbose=1)
+	myVolume_train_validate.confusion_matrix()
 	

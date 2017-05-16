@@ -175,58 +175,5 @@ def Volume_Labels_dir_dict(dataset_folder_dir):
 
 	return dir_dict
 
-def model_train_validate(X_train, Y_train, X_test, Y_test, batch_size=100, num_classes=2, epochs=15, verbose=1):
-	''''''
-	##########  Convolutional Neural Network Architecture  ###########################
-	model = Sequential()
-
-	model.add(Conv3D(8, (3, 3, 2), padding='same', input_shape=X_train.shape[1:]))
-	model.add(Activation('relu'))
-	print(model.output_shape)
-	model.add(Conv3D(16, (4, 4, 2), padding='valid'))
-	model.add(Activation('relu'))
-	print(model.output_shape)
-	model.add(MaxPooling3D(pool_size=(2, 2, 2)))
-	model.add(Dropout(0.2))
-	print(model.output_shape)
-	model.add(Conv3D(32, (2, 2, 2), padding='same'))
-	model.add(Activation('relu'))
-	print(model.output_shape)
-	model.add(Conv3D(32, (3, 3, 3), padding='valid'))
-	model.add(Activation('relu'))
-	print(model.output_shape)
-	model.add(MaxPooling3D(pool_size=(2, 2, 2)))
-	model.add(Dropout(0.2))
-	print(model.output_shape)
-	model.add(Flatten())
-	print(model.output_shape)
-	model.add(Dense(128))
-	model.add(Activation('relu'))
-	model.add(Dropout(0.2))
-	model.add(Dense(num_classes, activation='softmax'))
-	print(model.output_shape)
-	model.summary()
-
-	# initiate RMSprop optimizer
-	opt = keras.optimizers.rmsprop(lr=0.0001, decay=1e-6)
-	# Let's train the model using RMSprop
-	model.compile(loss='categorical_crossentropy',
-				  optimizer=RMSprop(),
-				  metrics=['accuracy'])
-	model.fit(X_train, Y_train,
-				  batch_size=batch_size,
-				  epochs=epochs,
-				  validation_data=(X_test, Y_test),
-				  shuffle=True,
-				  verbose=verbose)
-	model.save('neuron_conn_classifier.h5')
-	gc.collect()
-	return model
-
-def confusion_matrix(trained_model, X_dataset, Y_dataset):
-	''''''
-	model_predictions = trained_model.predict(X_dataset, batch_size=5000, verbose=0)
-	print("Confusion Matrix is: {0}".format(make_confusion_matrix(model_predictions, Y_dataset)))
-
 if __name__ == '__main__':    #code to execute if called from command-line
 	pass    
