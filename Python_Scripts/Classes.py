@@ -68,7 +68,8 @@ class MyVolume:
 		self.trained_model = None
 		self.direction = direction
 		self.predictions = None
-		self.six_directions_predictions={'y-plus':None, 'y-minus':None, 'x-plus':None, 'x-minus':None, 'z-plus':None, 'z-minus':None}
+		self.predictions_dict={'y-plus':None, 'y-minus':None, 'x-plus':None, 'x-minus':None, 'z-plus':None, 'z-minus':None}
+		self.reconstruction = None
 
 	def load_RawVolume(self):
 		'''load RawVolume as ndarray of shape=(Length, Width, Height, Num_Channels)'''
@@ -313,8 +314,8 @@ class MyVolume:
 												new_z-self.extra_height:new_z+1+self.extra_height, :])
 			inputs = np.stack(inputs, axis=0)        
 			prediction = self.trained_model.predict_classes(inputs, batch_size=self.W-1, verbose=0)
-			self.predictions = prediction.reshape((self.L,self.W-1), order='C')
-			print('predictions for direction {0} completed'.fomart(self.direction))
+			self.predictions[:,:,z] = prediction.reshape((self.L,self.W-1), order='C')
+		print('predictions for direction {0} completed'.format(self.direction))
 
 	def other_five_predictions(self):
 		''''''
@@ -323,30 +324,34 @@ class MyVolume:
 		new_volumelabels = np.rot90(self.VolumeLabels, 2, (1,2))
 		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'y-minus')
 		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.trained_model = self.trained_model
 		NewVolume.volumelabels_predictions()
-		self.six_directions_predictions['y-minus'] = np.rot90(NewVolume.predictions, 2, (0,1))
+		self.predictions_dict['y-minus'] = np.rot90(NewVolume.predictions, 2, (0,1))
 
 		#x-plus direction: rotate an array by 90 degree counterclockwise.
 		new_volume = np.rot90(self.RawVolume, 1, (0,1))           
 		new_volumelabels = np.rot90(self.VolumeLabels, 1, (1,2))
 		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'x-plus')  
 		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.trained_model = self.trained_model
 		NewVolume.volumelabels_predictions()
-		self.six_directions_predictions['x-plus'] = np.rot90(NewVolume.predictions, 3, (0,1))   
+		self.predictions_dict['x-plus'] = np.rot90(NewVolume.predictions, 3, (0,1))   
 
 		#x-minus direction: rotate an array by 270 degree counterclockwise.
 		new_volume = np.rot90(self.RawVolume, 3, (0,1))           
 		new_volumelabels = np.rot90(self.VolumeLabels, 3, (1,2)) 
 		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'x-minus')  
 		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.trained_model = self.trained_model
 		NewVolume.volumelabels_predictions()
-		self.six_directions_predictions['x-minus'] = np.rot90(NewVolume.predictions, 1, (0,1))
+		self.predictions_dict['x-minus'] = np.rot90(NewVolume.predictions, 1, (0,1))
 		'''
 		#z-plus direction: interchange two axes of an array and rotate by 270 degree counterclockwise.
 		new_volume = np.rot90(np.swapaxes(self.RawVolume,0,2), 3, (0,1)) 
 		new_volumelabels = np.rot90(np.swapaxes(self.VolumeLabels,1,3), 3, (1,2))
 		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'z-plus')  
 		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.trained_model = self.trained_model
 		NewVolume.volumelabels_predictions()
 		self.other_five_directions_predictions['z-plus'] = np.rot90(NewVolume.predictions, 1, (0,1))
 
@@ -355,11 +360,12 @@ class MyVolume:
 		new_volumelabels = np.rot90(np.swapaxes(self.VolumeLabels,1,3), 1, (1,2))
 		NewVolume = MyVolume(None, None, new_volume, new_volumelabels, 'z-minus')  
 		NewVolume.extra_length, NewVolume.extra_width, NewVolume.extra_height = (self.extra_length, self.extra_width, self.extra_height)
+		NewVolume.trained_model = self.trained_model
 		NewVolume.volumelabels_predictions()
 		self.other_five_directions_predictions['z-minus'] = np.rot90(NewVolume.predictions, 3, (0,1))
 		'''
 
-	def label_image_construction(predictions_dict):
+	def label_image_construction(self):
 		'''
 		Inputs: rotated_predictions_dict -- dictionary that contains six directions' predictions
 											('key',value)=(direction, predictions array
@@ -369,18 +375,18 @@ class MyVolume:
 		Outputs: reconstruction -- 3D 0/1 label array of shape=(Length, Width, Height). Indicates that a voxel
 								   is a neuron or a background.
 		'''
-		reconstruction = np.zeros((self.L, self.W, self.H), dtype=np.int)
+		self.reconstruction = np.zeros((self.L, self.W, self.H), dtype=np.int)
 		for z in range(self.H):
-			predictions_dict_4directions = {'y-plus':predictions_dict['y-plus'][:,:,z],
-										   'y-minus':predictions_dict['y-minus'][:,:,z],
-										   'x-plus':predictions_dict['x-plus'][:,:,z],
-										   'x-minus':predictions_dict['x-minus'][:,:,z]}
+			predictions_dict_4directions = {'y-plus':self.predictions_dict['y-plus'][:,:,z],
+										   'y-minus':self.predictions_dict['y-minus'][:,:,z],
+										   'x-plus':self.predictions_dict['x-plus'][:,:,z],
+										   'x-minus':self.predictions_dict['x-minus'][:,:,z]}
 			
 			for x in range(self.L):
 				for y in range(self.W):
-					reconstruction[x,y,z] = utl.current_voxel_label_4direction(predictions_dict_4directions, x, y, self.L, self.W)
+					self.reconstruction[x,y,z] = utl.current_voxel_label_4direction(predictions_dict_4directions, x, y, self.L, self.W)
 		
-		return reconstruction
+		
 
 if __name__ == '__main__':    #code to execute if called from command-line
 	#Training using mutiple volumes
@@ -419,7 +425,6 @@ if __name__ == '__main__':    #code to execute if called from command-line
 	myVolume_train_validate.model_train_validate(batch_size=5000, num_classes=2, epochs=15, verbose=1)
 	myVolume_train_validate.confusion_matrix()
 	'''
-	#pdb.set_trace()
 	model = load_model('neuron_conn_classifier.h5')
 	test_dataset_path_dict = utl.Volume_Labels_dir_dict('../Sample_Datasets/Test/')
 	test_volume_dict = {}
@@ -431,8 +436,19 @@ if __name__ == '__main__':    #code to execute if called from command-line
 		test_volume_dict[name].extra_length, test_volume_dict[name].extra_width, test_volume_dict[name].extra_height = (7, 7, 4)
 		test_volume_dict[name].trained_model = model
 		test_volume_dict[name].volumelabels_predictions()
-		test_volume_dict[name].six_directions_predictions['y-plus'] = test_volume_dict[name].predictions
+		test_volume_dict[name].predictions_dict['y-plus'] = test_volume_dict[name].predictions
 		test_volume_dict[name].other_five_predictions()
 		with open('{}_predictions.pickle'.format(name), 'wb') as f:
-			pickle.dump(test_volume_dict[name].six_directions_predictions, f)
+			pickle.dump(test_volume_dict[name].predictions_dict, f)
+	
+		#with open('sim_9cells_4ch_4000bn_0pn_1e-06pd_1.0ef_raw_predictions.pickle', 'rb') as f:
+			#test_volume_dict[name].predictions_dict = pickle.load(f)
+		test_volume_dict[name].label_image_construction()
+		utl.reconstruction_accuracy(test_volume_dict[name].reconstruction, test_volume_dict[name].volumeLabels)
 	gc.collect()
+
+
+
+
+
+
