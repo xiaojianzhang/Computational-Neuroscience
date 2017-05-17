@@ -70,6 +70,8 @@ class MyVolume:
 		self.predictions = None
 		self.predictions_dict={'y-plus':None, 'y-minus':None, 'x-plus':None, 'x-minus':None, 'z-plus':None, 'z-minus':None}
 		self.reconstruction = None
+		self.neuron_path = None
+		self.reconstructed_volume = None
 
 	def load_RawVolume(self):
 		'''load RawVolume as ndarray of shape=(Length, Width, Height, Num_Channels)'''
@@ -367,7 +369,7 @@ class MyVolume:
 
 	def label_image_construction(self):
 		'''
-		Inputs: rotated_predictions_dict -- dictionary that contains six directions' predictions
+		Inputs: predictions_dict -- dictionary that contains six directions' predictions
 											('key',value)=(direction, predictions array
 											associated with the direction)
 											'key'=['y-plus', 'y-minus', 'x-plus', 'x-minus','z-plus','z-minus']
@@ -387,6 +389,30 @@ class MyVolume:
 					self.reconstruction[x,y,z] = utl.current_voxel_label_4direction(predictions_dict_4directions, x, y, self.L, self.W)
 		
 		
+	def neuron_path_each_layer(self):
+		''''''
+		self.neuron_path={}
+		for layer in range(self.H):
+			predictions_one_layer={'y-plus':self.predictions_dict['y-plus'][:,:,layer],
+								   'y-minus':self.predictions_dict['y-minus'][:,:,layer],
+								   'x-plus':self.predictions_dict['x-plus'][:,:,layer],
+								   'x-minus':self.predictions_dict['x-minus'][:,:,layer]}
+			reconstruction_one_layer = self.reconstruction[:,:,layer]
+			self.neuron_path[str(layer)] = utl.neuron_path_one_layer(predictions_one_layer, reconstruction_one_layer)
+
+	def plot_path_each_layer(self):
+		import matplotlib.pyplot as plt
+		self.reconstructed_volume = np.zeros([self.L, self.W, self.H], dtype=int)
+		for layer in range(self.H):
+			for i,Coor_list in enumerate(self.neuron_path[str(layer)]):
+				for (x,y) in Coor_list:
+					self.reconstructed_volume[x,y,layer] = i+40
+			f, (ax1, ax2) = plt.subplots(1, 2)
+			ax1.imshow(self.reconstructed_volume[:,:,layer])
+			ax1.set_title('reconstructed volume layer {0}'.format(layer))
+			ax2.imshow(self.RawVolume[:,:,layer,:3])
+			ax2.set_title('raw volume layer {0}'.format(layer))
+			plt.savefig('../Images/RawVolume_ReconstructedVolume_Images/layer_{0}.png'.format(layer))
 
 if __name__ == '__main__':    #code to execute if called from command-line
 	#Training using mutiple volumes
@@ -435,16 +461,18 @@ if __name__ == '__main__':    #code to execute if called from command-line
 		test_volume_dict[name].load_VolumeLabels()
 		test_volume_dict[name].extra_length, test_volume_dict[name].extra_width, test_volume_dict[name].extra_height = (7, 7, 4)
 		test_volume_dict[name].trained_model = model
-		test_volume_dict[name].volumelabels_predictions()
-		test_volume_dict[name].predictions_dict['y-plus'] = test_volume_dict[name].predictions
-		test_volume_dict[name].other_five_predictions()
-		with open('{}_predictions.pickle'.format(name), 'wb') as f:
-			pickle.dump(test_volume_dict[name].predictions_dict, f)
+		#test_volume_dict[name].volumelabels_predictions()
+		#test_volume_dict[name].predictions_dict['y-plus'] = test_volume_dict[name].predictions
+		#test_volume_dict[name].other_five_predictions()
+		#with open('{}_predictions.pickle'.format(name), 'wb') as f:
+			#pickle.dump(test_volume_dict[name].predictions_dict, f)
 	
-		#with open('sim_9cells_4ch_4000bn_0pn_1e-06pd_1.0ef_raw_predictions.pickle', 'rb') as f:
-			#test_volume_dict[name].predictions_dict = pickle.load(f)
+		with open('sim_9cells_4ch_4000bn_0pn_1e-06pd_1.0ef_raw_predictions.pickle', 'rb') as f:
+			test_volume_dict[name].predictions_dict = pickle.load(f)
 		test_volume_dict[name].label_image_construction()
-		utl.reconstruction_accuracy(test_volume_dict[name].reconstruction, test_volume_dict[name].volumeLabels)
+		#utl.reconstruction_accuracy(test_volume_dict[name].reconstruction, test_volume_dict[name].VolumeLabels)
+		test_volume_dict[name].neuron_path_each_layer()
+		test_volume_dict[name].plot_path_each_layer()
 	gc.collect()
 
 

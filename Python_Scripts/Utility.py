@@ -270,5 +270,136 @@ def reconstruction_accuracy(reconstruction, volumeLabels):
 		Total_correct_count += local_correct_count
 	print('Total accuracy is: {0}'.format(Total_correct_count/float(L*W*H)))
 
+def neuron_path_one_layer(predictions_one_layer, reconstruction_one_layer):
+	''''''
+	Length,Width = reconstruction_one_layer.shape
+	xs,ys = np.where(reconstruction_one_layer==1)
+	all_neurons_locations = list(zip(xs.tolist(), ys.tolist()))
+	neurons_coor = list(zip(xs.tolist(), ys.tolist()))
+	neurons_coor_length = len(neurons_coor)
+	neuron_path=[]
+	
+	while(neurons_coor_length>0):
+		init_coor = neurons_coor[0]
+		#print('current neuron coor length is {0}'.format(neurons_coor_length))
+		new_path, intersection_with = one_path(init_coor, predictions_one_layer, Length, Width, all_neurons_locations, neuron_path)
+		if len(intersection_with)==1:
+			neuron_path[intersection_with[0]] += new_path
+		elif len(intersection_with)>1:
+			union_path = []
+			for index in intersection_with:
+				union_path += neuron_path[index]
+			union_path += new_path
+			neuron_path = [neuron_path[i] for i in range(len(neuron_path)) if i not in intersection_with]
+			neuron_path.append(union_path)
+		neuron_path.append(new_path)
+		neurons_coor = [item for item in neurons_coor if item not in new_path]
+		neurons_coor_length = len(neurons_coor)
+			
+	print('Number of neuron path is {0}'.format(len(neuron_path)))
+	return neuron_path
+
+def one_path(init_coor, predictions_one_layer, Length, Width, all_neurons_locations, neuron_path):
+	''''''
+	new_path = []
+	next_neuron_coor = [init_coor]
+	intersection_with = []
+	while(len(next_neuron_coor)>0):
+		current_neuron_coor = next_neuron_coor[0]
+		new_path.append(current_neuron_coor)
+		next_neuron_coor.remove(current_neuron_coor)
+		neighbor_neuron_coor = neighbor_neuron(current_neuron_coor, predictions_one_layer, Length, Width)
+		for neighbor_coor in neighbor_neuron_coor:
+			if neighbor_coor in all_neurons_locations and neighbor_coor not in new_path and neighbor_coor not in next_neuron_coor:
+				is_intersect, index = is_intersection(neighbor_coor, neuron_path)
+				if is_intersect:
+					intersection_with.append(index)
+				else:
+					next_neuron_coor.append(neighbor_coor)
+	return new_path, intersection_with
+
+def is_intersection(neighbor_coor, neuron_path):
+	''''''
+	if len(neuron_path) == 0:
+		return False, None
+	else:
+		for i,L in enumerate(neuron_path):
+			if neighbor_coor in L:
+				 return True, i
+		
+		return False,None
+
+def neighbor_neuron(current_neuron_coor, predictions_dict, x_lim, y_lim):
+	''''''
+	x_coor, y_coor = current_neuron_coor
+	neighbor_neuron_coor=[]
+	if x_coor>=1 and x_coor <= x_lim-2 and y_coor>=1 and y_coor<=y_lim-2:
+		if predictions_dict['y-plus'][x_coor, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor+1))
+		if predictions_dict['y-minus'][x_coor, y_coor-1] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor-1))
+		if predictions_dict['x-plus'][x_coor, y_coor] ==1:
+			neighbor_neuron_coor.append((x_coor+1,y_coor))
+		if predictions_dict['x-minus'][x_coor-1, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor-1,y_coor))
+	
+	elif x_coor==0 and y_coor>=1 and y_coor<=y_lim-2:
+		if predictions_dict['y-plus'][x_coor, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor+1))
+		if predictions_dict['y-minus'][x_coor, y_coor-1] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor-1))
+		if predictions_dict['x-plus'][x_coor, y_coor] ==1:
+			neighbor_neuron_coor.append((x_coor+1,y_coor))
+	
+	elif x_coor==x_lim-1 and y_coor>=1 and y_coor<=y_lim-2:
+		if predictions_dict['y-plus'][x_coor, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor+1))
+		if predictions_dict['y-minus'][x_coor, y_coor-1] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor-1))
+		if predictions_dict['x-minus'][x_coor-1, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor-1,y_coor))
+	
+	elif x_coor>=1 and x_coor <= x_lim-2 and y_coor==0:
+		if predictions_dict['y-plus'][x_coor, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor+1))
+		if predictions_dict['x-plus'][x_coor, y_coor] ==1:
+			neighbor_neuron_coor.append((x_coor+1,y_coor))
+		if predictions_dict['x-minus'][x_coor-1, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor-1,y_coor))
+			
+	elif x_coor>=1 and x_coor <= x_lim-2 and y_coor==y_lim-1:
+		if predictions_dict['y-minus'][x_coor, y_coor-1] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor-1))
+		if predictions_dict['x-plus'][x_coor, y_coor] ==1:
+			neighbor_neuron_coor.append((x_coor+1,y_coor))
+		if predictions_dict['x-minus'][x_coor-1, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor-1,y_coor))
+			
+	elif x_coor==0 and y_coor==0:
+		if predictions_dict['y-plus'][x_coor, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor+1))
+		if predictions_dict['x-plus'][x_coor, y_coor] ==1:
+			neighbor_neuron_coor.append((x_coor+1,y_coor))
+			
+	elif x_coor==0 and y_coor==y_lim-1:
+		if predictions_dict['y-minus'][x_coor, y_coor-1] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor-1))
+		if predictions_dict['x-plus'][x_coor, y_coor] ==1:
+			neighbor_neuron_coor.append((x_coor+1,y_coor))
+			
+	elif x_coor==x_lim-1 and y_coor==0:
+		if predictions_dict['y-plus'][x_coor, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor+1))
+		if predictions_dict['x-minus'][x_coor-1, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor-1,y_coor))
+			
+	elif x_coor==x_lim-1 and y_coor==y_lim-1:
+		if predictions_dict['y-minus'][x_coor, y_coor-1] == 1:
+			neighbor_neuron_coor.append((x_coor,y_coor-1))
+		if predictions_dict['x-minus'][x_coor-1, y_coor] == 1:
+			neighbor_neuron_coor.append((x_coor-1,y_coor))
+			
+	return neighbor_neuron_coor
+
 if __name__ == '__main__':    #code to execute if called from command-line
 	pass    
