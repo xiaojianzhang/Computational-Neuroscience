@@ -269,7 +269,7 @@ class MyVolume:
 		NewVolume.X_generator(self.extra_length, self.extra_width, self.extra_height, self.validation_dataset_ratio)
 		self.other_three_directions['x-minus'] = NewVolume
 
-	def stack_Xdata_Ydata_six_directions(self):
+	def stack_Xdata_Ydata_four_directions(self):
 		''''''
 		for myVolume in self.other_three_directions.values():
 			if myVolume is not None:
@@ -394,7 +394,7 @@ if __name__ == '__main__':    #code to execute if called from command-line
 		train_volume_dict[name].Y_generator()
 		train_volume_dict[name].X_generator(7, 7, 0, 0.2)
 		train_volume_dict[name].other_three_directions_rawvolume_and_volumelabel()
-		train_volume_dict[name].stack_Xdata_Ydata_six_directions()
+		train_volume_dict[name].stack_Xdata_Ydata_four_directions()
 		myVolume_train_validate.X_train.append(train_volume_dict[name].X_train)
 		del train_volume_dict[name].X_train
 		myVolume_train_validate.Y_train.append(train_volume_dict[name].Y_train)
