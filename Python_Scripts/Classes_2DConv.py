@@ -17,7 +17,7 @@ import gc
 import keras
 from keras.models import Sequential, load_model
 from keras.layers import Dense, Dropout, Activation, Flatten
-from keras.layers import Conv3D, MaxPooling3D
+from keras.layers import Conv2D, MaxPooling2D
 from keras.optimizers import RMSprop
 
 __author__ = "Sheng Zhang"
@@ -149,7 +149,7 @@ class MyVolume:
 				new_x, new_y, new_z = (x + extra_length, y + extra_width, z + extra_height)
 				input_array = augumented_Volume[new_x-extra_length:new_x+1+extra_length,\
 												new_y-extra_width:new_y+1+extra_width,\
-												new_z-extra_height:new_z+1+extra_height, :]
+												new_z-extra_height:new_z+1+extra_height, :].squeeze()
 				self.X_dataset.append(input_array)
 			self.X_dataset = np.stack(self.X_dataset, axis=0)
 			print('direction {0} completed\n'.format(self.direction))
@@ -167,12 +167,12 @@ class MyVolume:
 				new_x, new_y, new_z = (x + extra_length, y + extra_width, z + extra_height)
 				self.X_train.append(augumented_Volume[new_x-extra_length:new_x+1+extra_length,\
 													  new_y-extra_width:new_y+1+extra_width,\
-													  new_z-extra_height:new_z+1+extra_height, :])
+													  new_z-extra_height:new_z+1+extra_height, :].squeeze())
 			for (x,y,z) in X_coor_test:
 				new_x, new_y, new_z = (x + extra_length, y + extra_width, z + extra_height)
 				self.X_test.append(augumented_Volume[new_x-extra_length:new_x+1+extra_length,\
 													 new_y-extra_width:new_y+1+extra_width,\
-													 new_z-extra_height:new_z+1+extra_height, :])
+													 new_z-extra_height:new_z+1+extra_height, :].squeeze())
 			
 			self.X_train = np.stack(self.X_train, axis=0)
 			self.X_test = np.stack(self.X_test, axis=0)
@@ -185,22 +185,22 @@ class MyVolume:
 		##########  Convolutional Neural Network Architecture  ###########################
 		model = Sequential()
 
-		model.add(Conv3D(8, (3, 3, 2), padding='same', input_shape=self.X_train.shape[1:]))
+		model.add(Conv2D(8, (3, 3), padding='same', input_shape=self.X_train.shape[1:]))
 		model.add(Activation('relu'))
 		print(model.output_shape)
-		model.add(Conv3D(16, (4, 4, 2), padding='valid'))
+		model.add(Conv2D(16, (4, 4), padding='valid'))
 		model.add(Activation('relu'))
 		print(model.output_shape)
-		model.add(MaxPooling3D(pool_size=(2, 2, 2)))
+		model.add(MaxPooling2D(pool_size=(2, 2)))
 		model.add(Dropout(0.2))
 		print(model.output_shape)
-		model.add(Conv3D(32, (2, 2, 2), padding='same'))
+		model.add(Conv2D(32, (2, 2), padding='same'))
 		model.add(Activation('relu'))
 		print(model.output_shape)
-		model.add(Conv3D(32, (3, 3, 3), padding='valid'))
+		model.add(Conv2D(32, (3, 3), padding='valid'))
 		model.add(Activation('relu'))
 		print(model.output_shape)
-		model.add(MaxPooling3D(pool_size=(2, 2, 2)))
+		model.add(MaxPooling2D(pool_size=(2, 2)))
 		model.add(Dropout(0.2))
 		print(model.output_shape)
 		model.add(Flatten())
@@ -291,7 +291,7 @@ class MyVolume:
 					new_x, new_y = (x + self.extra_length, y + self.extra_width)
 					inputs.append(augumented_Volume[new_x-self.extra_length:new_x+1+self.extra_length,\
 												new_y-self.extra_width:new_y+1+self.extra_width,\
-												new_z-self.extra_height:new_z+1+self.extra_height, :])
+												new_z-self.extra_height:new_z+1+self.extra_height, :].squeeze())
 			inputs = np.stack(inputs, axis=0)        
 			prediction = self.trained_model.predict_classes(inputs, batch_size=self.W-1, verbose=0)
 			self.predictions[:,:,z] = prediction.reshape((self.L,self.W-1), order='C')
@@ -392,7 +392,7 @@ if __name__ == '__main__':    #code to execute if called from command-line
 		train_volume_dict[name].voxel_connectivity_types()
 		train_volume_dict[name].balance_dataset()
 		train_volume_dict[name].Y_generator()
-		train_volume_dict[name].X_generator(7, 7, 4, 0.2)
+		train_volume_dict[name].X_generator(7, 7, 0, 0.2)
 		train_volume_dict[name].other_three_directions_rawvolume_and_volumelabel()
 		train_volume_dict[name].stack_Xdata_Ydata_six_directions()
 		myVolume_train_validate.X_train.append(train_volume_dict[name].X_train)
@@ -417,7 +417,7 @@ if __name__ == '__main__':    #code to execute if called from command-line
 		test_volume_dict[name] = MyVolume(values['overRawVolume'], values['volumeLabels'])
 		test_volume_dict[name].load_RawVolume()
 		test_volume_dict[name].load_VolumeLabels()
-		test_volume_dict[name].extra_length, test_volume_dict[name].extra_width, test_volume_dict[name].extra_height = (7, 7, 4)
+		test_volume_dict[name].extra_length, test_volume_dict[name].extra_width, test_volume_dict[name].extra_height = (7, 7, 0)
 		test_volume_dict[name].trained_model = model
 		test_volume_dict[name].volumelabels_predictions()
 		test_volume_dict[name].predictions_dict['y-plus'] = test_volume_dict[name].predictions
